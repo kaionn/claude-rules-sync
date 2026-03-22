@@ -42,7 +42,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
       chalk.cyan('Commands to sync (comma-separated, or "*" for all, default: none): '),
     );
     const excludeInput = await rl.question(
-      chalk.cyan("Patterns to exclude (comma-separated, default: none): "),
+      chalk.cyan("Patterns to exclude (comma-separated, e.g., \"project-specific-*.md\", default: none): "),
     );
 
     const parseList = (input: string): string[] | undefined => {
@@ -52,9 +52,29 @@ export async function initCommand(options: InitOptions): Promise<void> {
       return trimmed.split(",").map((s) => s.trim()).filter(Boolean);
     };
 
+    const parseExclude = (input: string): string[] | undefined => {
+      const trimmed = input.trim();
+      if (!trimmed) return undefined;
+      if (trimmed === "*") {
+        console.log(chalk.yellow('Warning: "*" would exclude all files. Ignoring.'));
+        return undefined;
+      }
+      const patterns = trimmed.split(",").map((s) => s.trim()).filter(Boolean);
+      const CATCH_ALL = new Set(["*", "*.md", "**"]);
+      const catchAll = patterns.filter((p) => CATCH_ALL.has(p));
+      if (catchAll.length > 0) {
+        console.log(
+          chalk.yellow(`Warning: "${catchAll.join(", ")}" would exclude all files. Removed.`),
+        );
+        const filtered = patterns.filter((p) => !CATCH_ALL.has(p));
+        return filtered.length > 0 ? filtered : undefined;
+      }
+      return patterns;
+    };
+
     const rules = parseList(rulesInput) ?? ["*"];
     const commands = parseList(commandsInput);
-    const exclude = parseList(excludeInput);
+    const exclude = parseExclude(excludeInput);
 
     const config: SyncConfig = {
       source,
