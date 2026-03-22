@@ -5,6 +5,7 @@ import chalk from "chalk";
 import { glob } from "glob";
 import { loadConfig, resolveSourcePath } from "../lib/config.js";
 import { diffLines } from "../lib/differ.js";
+import { resolveFiles } from "../lib/files.js";
 
 export async function diffCommand(): Promise<void> {
   const cwd = process.cwd();
@@ -24,22 +25,10 @@ export async function diffCommand(): Promise<void> {
   for (const [subDir, patterns] of Object.entries(config.targets)) {
     if (!patterns || patterns.length === 0) continue;
 
-    const srcBase = join(sourceDir, subDir);
-    if (!existsSync(srcBase)) continue;
+    const files = await resolveFiles(sourceDir, subDir, patterns, exclude);
 
-    const globPatterns = patterns.includes("*") ? ["*.md"] : patterns;
-    const files: string[] = [];
-    for (const p of globPatterns) {
-      const matched = await glob(p, {
-        cwd: srcBase,
-        ignore: exclude,
-        absolute: false,
-      });
-      files.push(...matched);
-    }
-
-    for (const file of [...new Set(files)]) {
-      const srcPath = join(srcBase, file);
+    for (const file of files) {
+      const srcPath = join(sourceDir, subDir, file);
       const destPath = join(claudeDir, subDir, file);
 
       if (!existsSync(destPath)) {
@@ -70,7 +59,6 @@ export async function diffCommand(): Promise<void> {
       }
     }
 
-    // ローカルにあるがソースにないファイルをチェック
     const localDir = join(claudeDir, subDir);
     if (existsSync(localDir)) {
       const localFiles = await glob("*.md", {

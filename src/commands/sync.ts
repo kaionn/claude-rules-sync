@@ -1,50 +1,13 @@
-import { copyFile, mkdir, readFile } from "node:fs/promises";
+import { copyFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { resolve, join } from "node:path";
 import chalk from "chalk";
-import { glob } from "glob";
 import { loadConfig, resolveSourcePath } from "../lib/config.js";
+import { resolveFiles, filesAreEqual } from "../lib/files.js";
 
 interface SyncOptions {
   dryRun?: boolean;
   force?: boolean;
-}
-
-async function resolveFiles(
-  sourceDir: string,
-  subDir: string,
-  patterns: string[],
-  exclude: string[],
-): Promise<string[]> {
-  const baseDir = join(sourceDir, subDir);
-  if (!existsSync(baseDir)) return [];
-
-  if (patterns.includes("*")) {
-    return glob("*.md", { cwd: baseDir, ignore: exclude, absolute: false });
-  }
-
-  const files: string[] = [];
-  for (const pattern of patterns) {
-    const matched = await glob(pattern, {
-      cwd: baseDir,
-      ignore: exclude,
-      absolute: false,
-    });
-    files.push(...matched);
-  }
-  return [...new Set(files)];
-}
-
-async function filesAreEqual(a: string, b: string): Promise<boolean> {
-  try {
-    const [contentA, contentB] = await Promise.all([
-      readFile(a, "utf-8"),
-      readFile(b, "utf-8"),
-    ]);
-    return contentA === contentB;
-  } catch {
-    return false;
-  }
 }
 
 export async function syncCommand(options: SyncOptions): Promise<void> {
@@ -73,6 +36,9 @@ export async function syncCommand(options: SyncOptions): Promise<void> {
     }
 
     const targetDir = join(claudeDir, subDir);
+    if (!options.dryRun) {
+      await mkdir(targetDir, { recursive: true });
+    }
 
     for (const file of files) {
       const srcPath = join(sourceDir, subDir, file);
@@ -92,7 +58,6 @@ export async function syncCommand(options: SyncOptions): Promise<void> {
         continue;
       }
 
-      await mkdir(targetDir, { recursive: true });
       await copyFile(srcPath, destPath);
       console.log(chalk.green(`  synced ${subDir}/${file}`));
       synced++;

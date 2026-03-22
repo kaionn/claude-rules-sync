@@ -32,43 +32,33 @@ export async function scanCommand(dir: string, options: ScanOptions): Promise<vo
 
   console.log(chalk.dim(`Scanning ${baseDir} (depth: ${depth})...`));
 
-  // .claude ディレクトリを持つリポを探す
-  const pattern = `${"*/".repeat(depth)}.claude/{rules,commands}/*.md`;
-  const claudePaths = await glob(pattern, {
+  const claudePaths = await glob("**/.claude/{rules,commands}/*.md", {
     cwd: baseDir,
     absolute: false,
+    maxDepth: depth + 3, // depth levels of repo nesting + .claude/rules|commands/file.md
   });
-
-  // 直下の .claude も含む
-  const directPaths = await glob(".claude/{rules,commands}/*.md", {
-    cwd: baseDir,
-    absolute: false,
-  });
-  claudePaths.push(...directPaths);
 
   if (claudePaths.length === 0) {
     console.log(chalk.yellow("No .claude/rules or .claude/commands found."));
     return;
   }
 
-  const entries: RuleEntry[] = [];
+  const entries: RuleEntry[] = await Promise.all(
+    claudePaths.map(async (relPath) => {
+      const absPath = join(baseDir, relPath);
+      const content = await readFile(absPath, "utf-8");
+      const hash = contentHash(content);
 
-  for (const relPath of claudePaths) {
-    const absPath = join(baseDir, relPath);
-    const content = await readFile(absPath, "utf-8");
-    const hash = contentHash(content);
+      const parts = relPath.split("/");
+      const claudeIdx = parts.indexOf(".claude");
+      const repo = parts.slice(0, claudeIdx).join("/") || ".";
+      const subDir = parts[claudeIdx + 1];
+      const file = parts.slice(claudeIdx + 2).join("/");
 
-    // relPath: "repo/.claude/rules/file.md" → repo, rules, file.md
-    const parts = relPath.split("/");
-    const claudeIdx = parts.indexOf(".claude");
-    const repo = parts.slice(0, claudeIdx).join("/") || ".";
-    const subDir = parts[claudeIdx + 1];
-    const file = parts.slice(claudeIdx + 2).join("/");
+      return { repo, subDir, file, hash };
+    }),
+  );
 
-    entries.push({ repo, subDir, file, hash });
-  }
-
-  // ファイル名でグループ化
   const byFile = new Map<string, RuleEntry[]>();
   for (const entry of entries) {
     const key = `${entry.subDir}/${entry.file}`;
@@ -77,7 +67,6 @@ export async function scanCommand(dir: string, options: ScanOptions): Promise<vo
     byFile.set(key, group);
   }
 
-  // 重複ファイルを表示
   const duplicates = [...byFile.entries()].filter(([_, group]) => group.length > 1);
 
   if (duplicates.length === 0) {
@@ -88,9 +77,12 @@ export async function scanCommand(dir: string, options: ScanOptions): Promise<vo
 
   console.log(chalk.bold(`\nDuplicate rules found:\n`));
 
+  let identicalCount = 0;
   for (const [key, group] of duplicates) {
     const hashes = new Set(group.map((e) => e.hash));
-    const status = hashes.size === 1 ? chalk.green("identical") : chalk.yellow("divergent");
+    const isIdentical = hashes.size === 1;
+    if (isIdentical) identicalCount++;
+    const status = isIdentical ? chalk.green("identical") : chalk.yellow("divergent");
 
     console.log(`${chalk.bold(key)} (${status})`);
     for (const entry of group) {
@@ -100,9 +92,6 @@ export async function scanCommand(dir: string, options: ScanOptions): Promise<vo
     console.log();
   }
 
-  const identicalCount = duplicates.filter(
-    ([_, g]) => new Set(g.map((e) => e.hash)).size === 1,
-  ).length;
   const divergentCount = duplicates.length - identicalCount;
 
   console.log(
