@@ -1,0 +1,41 @@
+{
+  "name": "claude-rules-sync",
+  "version": "0.1.0",
+  "description": "Sync Claude Code rules and commands across multiple repositories",
+  "type": "module",
+  "bin": {
+    "claude-rules-sync": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src/"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "rules",
+    "sync",
+    "cli"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "eslint": "^9.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^3.0.0"
+  },
+  "dependencies": {
+    "chalk": "^5.4.0",
+    "commander": "^13.0.0",
+    "glob": "^11.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
